@@ -1,0 +1,391 @@
+"""
+Main Streamlit Application for Divide & Conquer Algorithms Visualizer
+"""
+import streamlit as st
+import pandas as pd
+import time
+import sys
+import os
+
+# Add the project root to the path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import from our modules
+from algorithms.sorting import SortingAlgorithms
+from algorithms.searching import SearchingAlgorithms
+from algorithms.math_algorithms import MathAlgorithms
+from algorithms.array_operations import ArrayOperations
+from utils.complexity import ComplexityAnalyzer
+from utils.visualizer import AlgorithmVisualizer
+from utils.helpers import HelperFunctions
+
+# Set page configuration
+st.set_page_config(
+    page_title="Divide & Conquer Algorithms Visualizer",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Load custom CSS
+def load_css():
+    css_path = os.path.join(os.path.dirname(__file__), 'assets', 'style.css')
+    if os.path.exists(css_path):
+        with open(css_path) as f:
+            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    else:
+        # Fallback to embedded CSS
+        st.markdown("""
+        <style>
+            .main-header {color: #2c3e50; font-size: 2.8rem; text-align: center;}
+            .sub-header {color: #2980b9; font-size: 1.8rem; margin-top: 1.5rem;}
+            .algorithm-card {background-color: white; border-radius: 15px; padding: 20px; margin-bottom: 20px;}
+            .complexity-box {background-color: #e3f2fd; border-radius: 12px; padding: 15px; margin: 12px 0;}
+            .step-box {background-color: #f9fbe7; border-radius: 10px; padding: 12px; margin: 8px 0;}
+        </style>
+        """, unsafe_allow_html=True)
+
+def main():
+    # Load CSS
+    load_css()
+    
+    # Main title
+    st.markdown("<h1 class='main-header'>⚡ Divide & Conquer Algorithms Visualizer</h1>", unsafe_allow_html=True)
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown("<h2 style='color: white;'>📊 Algorithm Selection</h2>", unsafe_allow_html=True)
+        
+        algorithm = st.selectbox(
+            "Choose an algorithm:",
+            ["Quick Sort", "Merge Sort", "Insertion Sort", "Heap Sort", 
+             "Binary Search", "Count Inversions", "Find Max & Min", "Karatsuba Multiplication"]
+        )
+        
+        st.markdown("---")
+        st.markdown("<h3 style='color: white;'>📝 Input Parameters</h3>", unsafe_allow_html=True)
+        
+        # Initialize session state for input
+        if 'input_array' not in st.session_state:
+            st.session_state.input_array = [5, 2, 8, 1, 9, 3, 7, 4, 6]
+        if 'search_key' not in st.session_state:
+            st.session_state.search_key = 7
+        if 'num1' not in st.session_state:
+            st.session_state.num1 = 1234
+        if 'num2' not in st.session_state:
+            st.session_state.num2 = 5678
+        
+        # Input handling based on algorithm type
+        if algorithm in ["Quick Sort", "Merge Sort", "Insertion Sort", "Heap Sort", 
+                         "Count Inversions", "Find Max & Min"]:
+            input_type = st.radio("Input type:", ["Manual Entry", "Random Array", "Example Array"])
+            
+            if input_type == "Manual Entry":
+                default_input = ", ".join(map(str, st.session_state.input_array))
+                input_str = st.text_input("Enter numbers (comma separated):", default_input)
+                arr = HelperFunctions.parse_input(input_str)
+                if arr:
+                    st.session_state.input_array = arr
+            elif input_type == "Random Array":
+                size = st.slider("Array size:", 5, 30, 10)
+                arr = HelperFunctions.generate_random_array(size)
+                st.write(f"Generated array: {HelperFunctions.format_array(arr)}")
+                st.session_state.input_array = arr
+            else:
+                # Example Array
+                example_arrays = {
+                    "Small Sorted": [1, 2, 3, 4, 5],
+                    "Small Reverse": [5, 4, 3, 2, 1],
+                    "Random Medium": [3, 7, 1, 9, 4, 2, 8, 5, 6],
+                    "With Duplicates": [5, 2, 8, 2, 9, 1, 5, 4]
+                }
+                selected_example = st.selectbox("Select example:", list(example_arrays.keys()))
+                arr = example_arrays[selected_example]
+                st.write(f"Example array: {HelperFunctions.format_array(arr)}")
+                st.session_state.input_array = arr
+        
+        elif algorithm == "Binary Search":
+            st.markdown("**For Binary Search, array must be sorted**")
+            input_type = st.radio("Input type:", ["Manual Entry", "Sorted Random Array", "Example Sorted Array"])
+            
+            if input_type == "Manual Entry":
+                default_input = ", ".join(map(str, sorted(st.session_state.input_array)))
+                input_str = st.text_input("Enter sorted numbers (comma separated):", default_input)
+                arr = HelperFunctions.parse_input(input_str)
+                if arr:
+                    st.session_state.input_array = sorted(arr)
+            elif input_type == "Sorted Random Array":
+                size = st.slider("Array size:", 5, 30, 10)
+                arr = sorted(HelperFunctions.generate_random_array(size))
+                st.write(f"Generated sorted array: {HelperFunctions.format_array(arr)}")
+                st.session_state.input_array = arr
+            else:
+                # Example Sorted Array
+                example_arrays = {
+                    "Small Sorted": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "Even Numbers": [2, 4, 6, 8, 10, 12, 14, 16],
+                    "Large Range": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+                }
+                selected_example = st.selectbox("Select example:", list(example_arrays.keys()))
+                arr = example_arrays[selected_example]
+                st.write(f"Example array: {HelperFunctions.format_array(arr)}")
+                st.session_state.input_array = arr
+            
+            # Search key input
+            search_key = st.number_input("Enter number to search:", 
+                                        value=st.session_state.search_key,
+                                        step=1)
+            st.session_state.search_key = search_key
+        
+        elif algorithm == "Karatsuba Multiplication":
+            col1, col2 = st.columns(2)
+            with col1:
+                num1 = st.number_input("First number:", 
+                                      value=st.session_state.num1,
+                                      step=1)
+                st.session_state.num1 = num1
+            with col2:
+                num2 = st.number_input("Second number:", 
+                                      value=st.session_state.num2,
+                                      step=1)
+                st.session_state.num2 = num2
+        
+        # Visualization speed
+        st.markdown("---")
+        st.markdown("<h3 style='color: white;'>⚙️ Visualization Settings</h3>", unsafe_allow_html=True)
+        speed = st.slider("Animation Speed:", 0.1, 2.0, 0.5, 0.1)
+        
+        # Run button
+        st.markdown("---")
+        run_button = st.button("🚀 Run Algorithm", type="primary", use_container_width=True)
+    
+    # Main content area
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("<h2 class='sub-header'>📊 Algorithm Visualization</h2>", unsafe_allow_html=True)
+        
+        if run_button:
+            # Create visualizer
+            visualizer = AlgorithmVisualizer()
+            
+            # Execute selected algorithm
+            with st.spinner(f"Running {algorithm}..."):
+                time.sleep(0.5)  # Small delay for UX
+                
+                if algorithm == "Quick Sort":
+                    arr = st.session_state.input_array.copy()
+                    steps = SortingAlgorithms.quick_sort(arr, 0, len(arr)-1)
+                    sorted_arr = arr
+                    
+                    # Display steps
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Quick Sort Steps")
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    # Visualization
+                    visualizer.visualize_sorting(steps, "Quick Sort", speed)
+                    
+                elif algorithm == "Merge Sort":
+                    arr = st.session_state.input_array.copy()
+                    steps = SortingAlgorithms.merge_sort(arr)
+                    sorted_arr = arr
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Merge Sort Steps")
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_sorting(steps, "Merge Sort", speed)
+                    
+                elif algorithm == "Insertion Sort":
+                    arr = st.session_state.input_array.copy()
+                    steps = SortingAlgorithms.insertion_sort(arr)
+                    sorted_arr = arr
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Insertion Sort Steps")
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_sorting(steps, "Insertion Sort", speed)
+                    
+                elif algorithm == "Heap Sort":
+                    arr = st.session_state.input_array.copy()
+                    steps = SortingAlgorithms.heap_sort(arr)
+                    sorted_arr = arr
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Heap Sort Steps")
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_sorting(steps, "Heap Sort", speed)
+                    
+                elif algorithm == "Binary Search":
+                    arr = st.session_state.input_array.copy()
+                    key = st.session_state.search_key
+                    
+                    result, steps = SearchingAlgorithms.binary_search(arr, key)
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Binary Search Steps")
+                    
+                    if result != -1:
+                        st.success(f"✅ Found {key} at index {result}")
+                    else:
+                        st.error(f"❌ {key} not found in array")
+                    
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_search(steps, "Binary Search", speed)
+                    
+                elif algorithm == "Count Inversions":
+                    arr = st.session_state.input_array.copy()
+                    inversions, steps = ArrayOperations.count_inversions(arr)
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Count Inversions")
+                    st.info(f"Total inversions: {inversions}")
+                    
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_array_operations(steps, "Count Inversions", speed)
+                    
+                elif algorithm == "Find Max & Min":
+                    arr = st.session_state.input_array.copy()
+                    max_val, min_val, steps = ArrayOperations.find_max_min(arr)
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Find Maximum & Minimum")
+                    st.success(f"Maximum: {max_val}, Minimum: {min_val}")
+                    
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_array_operations(steps, "Find Max & Min", speed)
+                    
+                elif algorithm == "Karatsuba Multiplication":
+                    num1 = st.session_state.num1
+                    num2 = st.session_state.num2
+                    
+                    result, steps = MathAlgorithms.karatsuba_multiplication(num1, num2)
+                    
+                    st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+                    st.subheader("🔍 Karatsuba Multiplication")
+                    st.success(f"{num1} × {num2} = {result}")
+                    st.info(f"Standard multiplication would take O(n²)")
+                    
+                    for i, step in enumerate(steps):
+                        st.markdown(f"<div class='step-box'>Step {i+1}: {step}</div>", unsafe_allow_html=True)
+                    
+                    visualizer.visualize_math_algorithm(steps, "Karatsuba Multiplication", speed)
+        
+        else:
+            # Show placeholder when not running
+            st.info("👈 Select an algorithm and parameters in the sidebar, then click 'Run Algorithm' to visualize.")
+            
+            # Show current input
+            st.markdown("<div class='algorithm-card'>", unsafe_allow_html=True)
+            st.subheader("📥 Current Input")
+            
+            if algorithm in ["Quick Sort", "Merge Sort", "Insertion Sort", "Heap Sort", 
+                           "Count Inversions", "Find Max & Min"]:
+                st.write(f"Array: {HelperFunctions.format_array(st.session_state.input_array)}")
+                st.write(f"Array size: {len(st.session_state.input_array)}")
+            elif algorithm == "Binary Search":
+                st.write(f"Sorted Array: {HelperFunctions.format_array(st.session_state.input_array)}")
+                st.write(f"Search key: {st.session_state.search_key}")
+            elif algorithm == "Karatsuba Multiplication":
+                st.write(f"First number: {st.session_state.num1}")
+                st.write(f"Second number: {st.session_state.num2}")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("<h2 class='sub-header'>📈 Complexity Analysis</h2>", unsafe_allow_html=True)
+        
+        analyzer = ComplexityAnalyzer()
+        
+        # Time Complexity
+        st.markdown("<div class='complexity-box'>", unsafe_allow_html=True)
+        st.subheader("⏱️ Time Complexity")
+        
+        complexities = {
+            "Quick Sort": "O(n log n) average, O(n²) worst",
+            "Merge Sort": "O(n log n)",
+            "Insertion Sort": "O(n²)",
+            "Heap Sort": "O(n log n)",
+            "Binary Search": "O(log n)",
+            "Count Inversions": "O(n log n)",
+            "Find Max & Min": "O(n)",
+            "Karatsuba Multiplication": "O(n^1.585)"
+        }
+        
+        st.write(complexities.get(algorithm, "Varies based on implementation"))
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Space Complexity
+        st.markdown("<div class='complexity-box'>", unsafe_allow_html=True)
+        st.subheader("💾 Space Complexity")
+        
+        space_complexities = {
+            "Quick Sort": "O(log n) to O(n)",
+            "Merge Sort": "O(n)",
+            "Insertion Sort": "O(1)",
+            "Heap Sort": "O(1)",
+            "Binary Search": "O(1)",
+            "Count Inversions": "O(n)",
+            "Find Max & Min": "O(1)",
+            "Karatsuba Multiplication": "O(n log n)"
+        }
+        
+        st.write(space_complexities.get(algorithm, "Varies based on implementation"))
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Best/Worst Cases
+        st.markdown("<div class='complexity-box'>", unsafe_allow_html=True)
+        st.subheader("📊 Best/Worst Cases")
+        
+        cases = {
+            "Quick Sort": "Best: O(n log n), Worst: O(n²)",
+            "Merge Sort": "Always O(n log n)",
+            "Insertion Sort": "Best: O(n), Worst: O(n²)",
+            "Heap Sort": "Always O(n log n)",
+            "Binary Search": "Best: O(1), Worst: O(log n)",
+            "Count Inversions": "Always O(n log n)",
+            "Find Max & Min": "Always O(n)",
+            "Karatsuba Multiplication": "Always O(n^1.585)"
+        }
+        
+        st.write(cases.get(algorithm, "Varies"))
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Current Statistics
+        if algorithm in ["Quick Sort", "Merge Sort", "Insertion Sort", "Heap Sort", 
+                        "Count Inversions", "Find Max & Min"]:
+            st.markdown("<div class='complexity-box'>", unsafe_allow_html=True)
+            st.subheader("📋 Current Statistics")
+            arr = st.session_state.input_array
+            st.write(f"Array Size: {len(arr)}")
+            st.write(f"Range: {min(arr)} to {max(arr)}")
+            st.write(f"Unique Values: {len(set(arr))}")
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
+            <p>Divide & Conquer Algorithms Visualizer | Made with Streamlit</p>
+            <p>⚡ Visualizing algorithms one step at a time</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+if __name__ == "__main__":
+    main()
